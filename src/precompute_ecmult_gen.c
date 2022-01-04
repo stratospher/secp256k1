@@ -24,14 +24,15 @@ static const int CONFIGS[][2] = {
 };
 
 static void print_table(FILE* fp, int blocks, int teeth) {
+    int spacing = (255 + blocks * teeth) / (blocks * teeth);
     size_t points = ((size_t)1) << (teeth - 1);
     int outer;
     size_t inner;
 
     secp256k1_ge_storage* table = checked_malloc(&default_error_callback, blocks * points * sizeof(secp256k1_ge_storage));
-    secp256k1_ecmult_gen_compute_table(table, &secp256k1_ge_const_g, blocks, teeth);
+    secp256k1_ecmult_gen_compute_table(table, &secp256k1_ge_const_g, blocks, teeth, spacing);
 
-    fprintf(fp, "#if (COMB_BLOCKS == %d) && (COMB_TEETH == %d)\n", blocks, teeth);
+    fprintf(fp, "#if (COMB_BLOCKS == %d) && (COMB_TEETH == %d) && (COMB_SPACING == %d)\n", blocks, teeth, spacing);
     for (outer = 0; outer != blocks; outer++) {
         fprintf(fp,"{");
         for (inner = 0; inner != points; inner++) {
