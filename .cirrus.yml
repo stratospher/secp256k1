@@ -18,6 +18,7 @@ env:
   ECDH: no
   RECOVERY: no
   SCHNORRSIG: no
+  ELLSWIFT: no
   ### test options
   SECP256K1_TEST_ITERS:
   BENCH: yes
@@ -67,11 +68,11 @@ task:
   << : *LINUX_CONTAINER
   matrix: &ENV_MATRIX
     - env: {WIDEMUL:  int64,  RECOVERY: yes}
-    - env: {WIDEMUL:  int64,                 ECDH: yes, SCHNORRSIG: yes}
+    - env: {WIDEMUL:  int64,                 ECDH: yes, SCHNORRSIG: yes, ELLSWIFT: yes}
     - env: {WIDEMUL: int128}
-    - env: {WIDEMUL: int128,  RECOVERY: yes,            SCHNORRSIG: yes}
+    - env: {WIDEMUL: int128,  RECOVERY: yes,            SCHNORRSIG: yes, ELLSWIFT: yes}
     - env: {WIDEMUL: int128,                 ECDH: yes, SCHNORRSIG: yes}
-    - env: {WIDEMUL: int128,  ASM: x86_64}
+    - env: {WIDEMUL: int128,  ASM: x86_64                              , ELLSWIFT: yes}
     - env: {                  RECOVERY: yes,            SCHNORRSIG: yes}
     - env: {BUILD: distcheck, WITH_VALGRIND: no, CTIMETEST: no, BENCH: no}
     - env: {CPPFLAGS: -DDETERMINISTIC}
@@ -178,6 +179,7 @@ task:
     ECDH: yes
     RECOVERY: yes
     SCHNORRSIG: yes
+    ELLSWIFT: yes
     CTIMETEST: no
   << : *MERGE_BASE
   test_script:
@@ -197,6 +199,7 @@ task:
     ECDH: yes
     RECOVERY: yes
     SCHNORRSIG: yes
+    ELLSWIFT: yes
     CTIMETEST: no
   matrix:
     - env: {}
@@ -217,6 +220,7 @@ task:
     ECDH: yes
     RECOVERY: yes
     SCHNORRSIG: yes
+    ELLSWIFT: yes
     CTIMETEST: no
   << : *MERGE_BASE
   test_script:
@@ -234,6 +238,7 @@ task:
     ECDH: yes
     RECOVERY: yes
     SCHNORRSIG: yes
+    ELLSWIFT: yes
     CTIMETEST: no
   << : *MERGE_BASE
   test_script:
@@ -271,6 +276,8 @@ task:
     RECOVERY: yes
     EXPERIMENTAL: yes
     SCHNORRSIG: yes
+    ELLSWIFT: yes
+    ELLSWIFT: yes
     CTIMETEST: no
     # Set non-essential options that affect the CLI messages here.
     # (They depend on the user's taste, so we don't want to set them automatically in configure.ac.)
@@ -304,6 +311,7 @@ task:
     ECDH: yes
     RECOVERY: yes
     SCHNORRSIG: yes
+    ELLSWIFT: yes
     CTIMETEST: no
   matrix:
     - name: "Valgrind (memcheck)"
@@ -352,6 +360,7 @@ task:
     ECDH: yes
     RECOVERY: yes
     SCHNORRSIG: yes
+    ELLSWIFT: yes
   << : *MERGE_BASE
   test_script:
     - ./ci/cirrus.sh
