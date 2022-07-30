@@ -7163,38 +7163,54 @@ void run_cmov_tests(void) {
     scalar_cmov_test();
     ge_storage_cmov_test();
 }
+/*
+ * in ellswift.py
+ * x is 0x707bdb9605dcf527dd4d9fddd417d5ca79a0ad3809bf704aaa271509355fdb73
+ * u is 0xbb51bcb075371cbfaf14f5ada8ebdc44f3ea0822d3a24bc2ef5e287d5208aec0
+ * v is 0xf5d4c9cd8132bae8f0b1a2b4d06d96d4f1f96f80e6d6c8ca84fb7fbb0be0c521
+ * x = f(u,v)
+* encoding = b'\xbbQ\xbc\xb0u7\x1c\xbf\xaf\x14\xf5\xad\xa8\xeb\xdcD\xf3\xea\x08"\xd3\xa2K\xc2\xef^(}R\x08\xae\xc0\xf5\xd4\xc9\xcd\x812\xba\xe8\xf0\xb1\xa2\xb4\xd0m\x96\xd4\xf1\xf9o\x80\xe6\xd6\xc8\xca\x84\xfb\x7f\xbb\x0b\xe0\xc5!'
+* x = decode(encoding)
+* print(hex(x.val))
+ */
+static const secp256k1_fe my_u = SECP256K1_FE_CONST(0xbb51bcb0, 0x75371cbf, 0xaf14f5ad, 0xa8ebdc44, 0xf3ea0822, 0xd3a24bc2, 0xef5e287d, 0x5208aec0);
+static const secp256k1_fe my_t = SECP256K1_FE_CONST(0xf5d4c9cd, 0x8132bae8, 0xf0b1a2b4, 0xd06d96d4, 0xf1f96f80, 0xe6d6c8ca, 0x84fb7fbb, 0x0be0c521);
+
+/*
+ * thanks!
+ * https://github.com/siv2r/secp256k1/tree/test-api
+ * custom debug functions in src/modules/debug/main_imp.h
+ * call them in src/tests.c (this file)
+ */
+static void print_buf(const unsigned char *buf, size_t n) {
+    size_t i;
+    for (i = 0; i < n; i++) {
+        printf("%02x", buf[i]);
+        if(i % 4 == 3) {
+            printf(" ");
+        }
+    }
+/*     printf("\n"); */
+}
+
+/*
+*inp must be normalized. If you want to print an fe without normalization
+*do printf("%lx", inp->n[i]), i = 0...4
+ */
+static void print_fe(const secp256k1_fe *inp) {
+    unsigned char value[32];
+    secp256k1_fe_get_b32(value, inp);
+    print_buf(value, 32);
+
+#ifdef VERIFY
+    printf(", %d (mag), %d (normal)\n", inp->magnitude, inp->normalized);
+#endif
+}
 
 int main(int argc, char **argv) {
     /* Disable buffering for stdout to improve reliability of getting
      * diagnostic information. Happens right at the start of main because
      * setbuf must be used before any other operation on the stream. */
-    setbuf(stdout, NULL);
-    /* Also disable buffering for stderr because it's not guaranteed that it's
-     * unbuffered on all systems. */
-    setbuf(stderr, NULL);
-
-    /* find iteration count */
-    if (argc > 1) {
-        count = strtol(argv[1], NULL, 0);
-    } else {
-        const char* env = getenv("SECP256K1_TEST_ITERS");
-        if (env && strlen(env) > 0) {
-            count = strtol(env, NULL, 0);
-        }
-    }
-    if (count <= 0) {
-        fputs("An iteration count of 0 or less is not allowed.\n", stderr);
-        return EXIT_FAILURE;
-    }
-    printf("test count = %i\n", count);
-
-    /* find random seed */
-    secp256k1_testrand_init(argc > 2 ? argv[2] : NULL);
-
-    /* initialize */
-    run_context_tests(0);
-    run_context_tests(1);
-    run_scratch_tests();
 
     ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY);
     /* Randomize the context only with probability 15/16
@@ -7206,71 +7222,10 @@ int main(int argc, char **argv) {
         CHECK(secp256k1_context_randomize(ctx, rand32));
     }
 
-    run_rand_bits();
-    run_rand_int();
-
-    run_ctz_tests();
-    run_modinv_tests();
-    run_inverse_tests();
-
-    run_sha256_known_output_tests();
-    run_sha256_counter_tests();
-    run_hmac_sha256_tests();
-    run_rfc6979_hmac_sha256_tests();
-    run_tagged_sha256_tests();
-
-    /* scalar tests */
-    run_scalar_tests();
-
-    /* field tests */
-    run_field_half();
-    run_field_misc();
-    run_field_convert();
-    run_fe_mul();
-    run_sqr();
-    run_sqrt();
-
-    /* group tests */
-    run_ge();
-    run_gej();
-    run_group_decompress();
-
-    /* ecmult tests */
-    run_ecmult_pre_g();
-    run_wnaf();
-    run_point_times_order();
-    run_ecmult_near_split_bound();
-    run_ecmult_chain();
-    run_ecmult_constants();
-    run_ecmult_gen_blind();
-    run_ecmult_const_tests();
-    run_ecmult_multi_tests();
-    run_ec_combine();
-
-    /* endomorphism tests */
-    run_endomorphism_tests();
-
-    /* EC point parser test */
-    run_ec_pubkey_parse_test();
-
-    /* EC key edge cases */
-    run_eckey_edge_case_test();
-
-    /* EC key arithmetic test */
-    run_eckey_negate_test();
-
 #ifdef ENABLE_MODULE_ECDH
     /* ecdh tests */
     run_ecdh_tests();
 #endif
-
-    /* ecdsa tests */
-    run_pubkey_comparison();
-    run_random_pubkeys();
-    run_ecdsa_der_parse();
-    run_ecdsa_sign_verify();
-    run_ecdsa_end_to_end();
-    run_ecdsa_edge_cases();
 
 #ifdef ENABLE_MODULE_RECOVERY
     /* ECDSA pubkey recovery tests */
@@ -7286,16 +7241,16 @@ int main(int argc, char **argv) {
 #endif
 
 #ifdef ENABLE_MODULE_ELLSWIFT
-    run_ellswift_tests();
+    // we want to find x such that f(my_u, my_t) = x
+    // we want x in this piece of code to match x produced by python code
+    secp256k1_fe x;
+    secp256k1_ellswift_fe2_to_gex_var(&x, &my_u, &my_t);
+    secp256k1_fe_normalize_var(&x);
+    print_fe(&x);
+    // Finally:
+    // then, run $cat tests.log in the terminal
+//    run_ellswift_tests();
 #endif
-
-    /* util tests */
-    run_secp256k1_memczero_test();
-    run_secp256k1_byteorder_tests();
-
-    run_cmov_tests();
-
-    secp256k1_testrand_finish();
 
     /* shutdown */
     secp256k1_context_destroy(ctx);
