@@ -7176,6 +7176,21 @@ void run_cmov_tests(void) {
 static const secp256k1_fe my_u = SECP256K1_FE_CONST(0xbb51bcb0, 0x75371cbf, 0xaf14f5ad, 0xa8ebdc44, 0xf3ea0822, 0xd3a24bc2, 0xef5e287d, 0x5208aec0);
 static const secp256k1_fe my_t = SECP256K1_FE_CONST(0xf5d4c9cd, 0x8132bae8, 0xf0b1a2b4, 0xd06d96d4, 0xf1f96f80, 0xe6d6c8ca, 0x84fb7fbb, 0x0be0c521);
 
+// test case 1, j=1
+//static const secp256k1_fe encode_x = SECP256K1_FE_CONST(0x8FA22993, 0xCAB79EC0, 0x48DAB6D6, 0xF35C6962, 0x27D0D652, 0x1790C770, 0x2FF3A725, 0x9CAB5DFC);
+//static const secp256k1_fe encode_u = SECP256K1_FE_CONST(0x16f672e2, 0x281d7a21, 0x1409ec71, 0x366c0ecf, 0x459b791b, 0x82b2220d, 0x83f23455, 0x83deb193);
+// test case 2, j=4
+static const secp256k1_fe encode_x = SECP256K1_FE_CONST(0x4da5c99b, 0x81b4208d, 0x8ba7a622, 0xa1bd2114, 0x6a869e4d, 0xa2ae3034, 0x2e2cafc0, 0x9834601e);
+static const secp256k1_fe encode_u = SECP256K1_FE_CONST(0xe5ff4ebc, 0xa87fd40d, 0x20b1499d, 0xe11cbb83, 0x2168d04f, 0x537928e6, 0x642362ab, 0x14437638);
+
+//static const secp256k1_ge random_group = SECP256K1_GE_CONST(
+//        0xa9e00d32, 0x011683d7, 0x5dadb132, 0x5975b21b, 0xfdc98cdc, 0xff3ee2ce, 0x09b2d68b, 0x9d6a67ea,
+//        0xc3345045, 0xd82a5bc0, 0xc83cdc6c, 0xd45217c5, 0x2a22c9ce, 0x2c5f951e, 0x353552c2, 0xa5e69e27
+//        );
+static const secp256k1_ge random_group = SECP256K1_GE_CONST(
+        0x1e29d917, 0x7903b883, 0xc3285768, 0x0b6d0458, 0x09889ee1, 0xa50aa277, 0xdabd70e4, 0xd737c365,
+        0x7d2c60bf, 0x2bb99576, 0x06350154, 0xf18cd59a, 0x82e3210a, 0xe14c3363, 0x573ac079, 0xafed6408
+);
 /*
  * thanks!
  * https://github.com/siv2r/secp256k1/tree/test-api
@@ -7241,15 +7256,89 @@ int main(int argc, char **argv) {
 #endif
 
 #ifdef ENABLE_MODULE_ELLSWIFT
-    // we want to find x such that f(my_u, my_t) = x
-    // we want x in this piece of code to match x produced by python code
-    secp256k1_fe x;
-    secp256k1_ellswift_fe2_to_gex_var(&x, &my_u, &my_t);
-    secp256k1_fe_normalize_var(&x);
-    print_fe(&x);
-    // Finally:
-    // then, run $cat tests.log in the terminal
-//    run_ellswift_tests();
+//    // we want to find x such that f(my_u, my_t) = x
+//    // we want x in this piece of code to match x produced by python code
+//    secp256k1_fe x;
+//    secp256k1_ellswift_fe2_to_gex_var(&x, &my_u, &my_t);
+//    secp256k1_fe_normalize_var(&x);
+//    print_fe(&x);
+//    // Finally:
+//    // then, run $cat tests.log in the terminal
+
+//    // test 2:
+//    // to test u,t = encode(x, y)
+//    // we provide u, j and x
+//    // we check if t matches the t in python
+//    secp256k1_fe t;
+//    secp256k1_ellswift_fegex_to_fe_var(&t, &encode_x, &encode_u, 4);
+//    secp256k1_fe_normalize_var(&t);
+//    print_fe(&t);
+
+//    // test 3:
+//    // we supply pubkey, rnd32 and see if we obtain same encoding
+//    // this will let us know if we are deriving entropy the right way
+//    secp256k1_pubkey pubkey;
+//    unsigned char rnd32[32] = {
+//            0xf8, 0xe7, 0x50, 0x37, 0xaa, 0xfa, 0x82, 0x3c,
+//            0x76, 0xaa, 0x22, 0xf0, 0xa3, 0xa4, 0x90, 0xda,
+//            0x31, 0x67, 0x93, 0xac, 0x33, 0xb0, 0xb3, 0xe8,
+//            0x3a, 0x58, 0xbf, 0xe0, 0xc0, 0x27, 0x49, 0x59,
+//        };
+//    unsigned char ell64[64];
+//    secp256k1_pubkey_save(&pubkey, &random_group);
+//    secp256k1_ellswift_encode(ctx, ell64, &pubkey, rnd32);
+//    print_buf(&ell64, 64);
+
+//    //test 4: testing hash
+//    // conclusion: don't listen to music when debuggging
+//    // you wrote 0x49, 0x59, as 0x4, 0x959, ..... come onnn
+//    static const unsigned char PREFIX[128 - 9 - 4 - 32 - 33] = "secp256k1_ellswift_encode";
+//    secp256k1_fe u, t;
+//    secp256k1_ge p;
+//    unsigned char p33[33];
+//    unsigned char branch_hash[32];
+//    secp256k1_sha256 hash, hash2;
+//
+//    secp256k1_pubkey_load(ctx, &p, &pubkey);
+//    /* Set up hasher state */
+//    secp256k1_sha256_initialize(&hash);
+//    secp256k1_sha256_write(&hash, PREFIX, sizeof(PREFIX));
+//    printf("printing PREFIX\n");
+//    print_buf_1(&PREFIX, 128 - 9 - 4 - 32 - 33);
+//    printf("printing 32 bytes\n");
+//    print_buf_1(&rnd32, 32);
+//    secp256k1_sha256_write(&hash, rnd32, 32);
+//    printf("printing 33 bytes\n");
+//    secp256k1_fe_get_b32(p33, &p.x);
+//    p33[32] = secp256k1_fe_is_odd(&p.y);
+//    print_buf_1(&p33, 33);
+//    secp256k1_sha256_write(&hash, p33, sizeof(p33));
+//    printf("final hash\n");
+//    secp256k1_sha256_finalize(&hash, branch_hash);
+//    print_buf_1(&branch_hash, 32);
+
+    // test 5:
+    // we supply pubkey, rnd32 and see if we obtain same encoding
+    // this will let us know if we are deriving entropy the right way
+    secp256k1_pubkey pubkey;
+    unsigned char rnd32[32] = {
+            0x83, 0x9c, 0x7c, 0x66, 0x64, 0xd2, 0x99, 0xe0,
+            0xb7, 0xe3, 0x3a, 0x8f, 0x84, 0x11, 0xfa, 0xd5,
+            0x3d, 0xb2, 0x56, 0x86, 0xe3, 0x0a, 0x81, 0xa0,
+            0x70, 0x8b, 0xf6, 0x62, 0x73, 0xe5, 0x8d, 0x16,
+            };
+//    unsigned char rnd32[32] = {
+//            0xf8, 0xe7, 0x50, 0x37, 0xaa, 0xfa, 0x82, 0x3c,
+//            0x76, 0xaa, 0x22, 0xf0, 0xa3, 0xa4, 0x90, 0xda,
+//            0x31, 0x67, 0x93, 0xac, 0x33, 0xb0, 0xb3, 0xe8,
+//            0x3a, 0x58, 0xbf, 0xe0, 0xc0, 0x27, 0x49, 0x59,
+//        };
+    unsigned char ell64[64];
+    secp256k1_pubkey_save(&pubkey, &random_group);
+    secp256k1_ellswift_encode(ctx, ell64, &pubkey, rnd32);
+    print_buf(&ell64, 64);
+
+//        run_ellswift_tests();
 #endif
 
     /* shutdown */

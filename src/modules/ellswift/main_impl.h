@@ -89,7 +89,7 @@ static void secp256k1_ellswift_fe2_to_gex_var(secp256k1_fe* x, const secp256k1_f
 static void secp256k1_ellswift_fe2_to_ge_var(secp256k1_ge* p, const secp256k1_fe* u, const secp256k1_fe* t) {
     secp256k1_fe x;
     secp256k1_ellswift_fe2_to_gex_var(&x, u, t);
-    secp256k1_ge_set_xo_var(p, &x, secp256k1_fe_is_odd(t));
+    secp256k1_ge_set_xo_var(p, &x, secp256k1_fe_is_odd(t));//todo: hmm?
 }
 
 /* Try to complete an ElligatorSwift encoding (u, t) for X coordinate x, given u and x.
@@ -106,6 +106,25 @@ static void secp256k1_ellswift_fe2_to_ge_var(secp256k1_ge* p, const secp256k1_fe
  *   - no result with t=0 will be returned
  *   - no result for which u^3 + t^2 + 7 = 0 will be returned.
  */
+static void print_buf_1(const unsigned char *buf, size_t n) {
+    size_t i;
+    for (i = 0; i < n; i++) {
+        printf("%02x", buf[i]);
+        if(i % 4 == 3) {
+            printf(" ");
+        }
+    }
+    printf("\n");
+}
+static void print_fe_1(const secp256k1_fe *inp) {
+    unsigned char value[32];
+    secp256k1_fe_get_b32(value, inp);
+    print_buf_1(value, 32);
+
+#ifdef VERIFY
+    printf(", %d (mag), %d (normal)\n", inp->magnitude, inp->normalized);
+#endif
+}
 static int secp256k1_ellswift_fegex_to_fe_var(secp256k1_fe* t, const secp256k1_fe* x, const secp256k1_fe* u, int i) {
     secp256k1_fe xm = *x, um = *u;
     secp256k1_fe g, s, w2, w;
@@ -122,10 +141,14 @@ static int secp256k1_ellswift_fegex_to_fe_var(secp256k1_fe* t, const secp256k1_f
         secp256k1_fe_mul(&o, &o, &s);
         secp256k1_fe_negate(&o, &o, 1);
         secp256k1_fe_add(&o, &secp256k1_fe_const_b);
-        if (secp256k1_fe_jacobi_var(&o) >= 0) return 0;
+        if (secp256k1_fe_jacobi_var(&o) >= 0){
+//            printf("hits case 1");
+            return 0;
+        }
         if (i & 1) {
             secp256k1_fe_add(&xm, &um);
             secp256k1_fe_negate(&xm, &xm, 2);
+//            printf("hits case 2");
         }
         o = um;
         secp256k1_fe_add(&o, &xm);
@@ -135,11 +158,15 @@ static int secp256k1_ellswift_fegex_to_fe_var(secp256k1_fe* t, const secp256k1_f
         secp256k1_fe_add(&w2, &o);
         secp256k1_fe_inv_var(&w2, &w2);
         secp256k1_fe_mul(&w2, &w2, &g);
+//        printf("hits case 3");
     } else {
         secp256k1_fe r2, r;
         secp256k1_fe_negate(&w2, &um, 1);
         secp256k1_fe_add(&w2, &xm);
-        if (secp256k1_fe_normalizes_to_zero_var(&w2)) return 0;
+        if (secp256k1_fe_normalizes_to_zero_var(&w2)){
+//            printf("hits case 4");
+            return 0;
+        }
         secp256k1_fe_normalize_weak(&g);
         secp256k1_fe_mul_int(&g, 4);
         secp256k1_fe_sqr(&r2, &um);
@@ -148,19 +175,34 @@ static int secp256k1_ellswift_fegex_to_fe_var(secp256k1_fe* t, const secp256k1_f
         secp256k1_fe_add(&r2, &g);
         secp256k1_fe_mul(&r2, &r2, &w2);
         secp256k1_fe_negate(&r2, &r2, 1);
-        if (!secp256k1_fe_sqrt(&r, &r2)) return 0;
+        if (!secp256k1_fe_sqrt(&r, &r2)){
+//            printf("hits case 5");
+            return 0;
+        }
         if (i & 1) {
-            if (secp256k1_fe_normalizes_to_zero_var(&r)) return 0;
+            if (secp256k1_fe_normalizes_to_zero_var(&r)){
+//                printf("hits case 6");
+                return 0;
+            }
             secp256k1_fe_negate(&r, &r, 1);
+//            printf("hits case 7");
         }
         secp256k1_fe_inv_var(&xm, &w2);
         secp256k1_fe_mul(&xm, &xm, &r);
         secp256k1_fe_add(&xm, &um);
         secp256k1_fe_half(&xm);
         secp256k1_fe_negate(&xm, &xm, 2);
+//        printf("hits case 8");
     }
-    if (!secp256k1_fe_sqrt(&w, &w2)) return 0;
-    if (i & 4) secp256k1_fe_negate(&w, &w, 1);
+    if (!secp256k1_fe_sqrt(&w, &w2)){
+//        printf("hits case 9");
+        return 0;
+    }
+    if (i & 4){
+//        printf("hits case 10");
+        secp256k1_fe_negate(&w, &w, 1);
+    }
+    secp256k1_fe_normalize_var(&xm);
     secp256k1_fe_mul(&um, &um, &secp256k1_ellswift_c2);
     secp256k1_fe_add(&um, &xm);
     secp256k1_fe_mul(t, &w, &um);
@@ -191,6 +233,7 @@ static void secp256k1_ellswift_gex_to_fe2_var(secp256k1_fe* u, secp256k1_fe* t, 
         int branch;
         /* If the pool of branch values is empty, populate it. */
         if (branches_left == 0) {
+            printf("%d:%d\n",cnt, branches_left);
             secp256k1_sha256 hash = *hasher;
             unsigned char buf4[4];
             buf4[0] = cnt;
@@ -198,9 +241,13 @@ static void secp256k1_ellswift_gex_to_fe2_var(secp256k1_fe* u, secp256k1_fe* t, 
             buf4[2] = cnt >> 16;
             buf4[3] = cnt >> 24;
             ++cnt;
+//            printf("bytesbefore=%d\n",hash.bytes);
             secp256k1_sha256_write(&hash, buf4, 4);
             secp256k1_sha256_finalize(&hash, branch_hash);
+//            print_buf_1(&branch_hash, 32);
+//            printf("bytes=%d\n",hash.bytes);
             branches_left = 64;
+            printf("%d:%d\n",cnt, branches_left);
         }
         /* Take a 3-bit branch value from the branch pool (top bit is discarded). */
         --branches_left;
@@ -215,8 +262,10 @@ static void secp256k1_ellswift_gex_to_fe2_var(secp256k1_fe* u, secp256k1_fe* t, 
             buf4[2] = cnt >> 16;
             buf4[3] = cnt >> 24;
             ++cnt;
+            printf("%d:%d\n",cnt, branches_left);
             secp256k1_sha256_write(&hash, buf4, 4);
             secp256k1_sha256_finalize(&hash, u32);
+//            print_buf_1(&u32, 32);
             if (!secp256k1_fe_set_b32(u, u32)) continue;
             if (secp256k1_fe_is_zero(u)) continue;
         }
@@ -237,32 +286,57 @@ static void secp256k1_ellswift_ge_to_fe2_var(secp256k1_fe* u, secp256k1_fe* t, c
     }
 }
 
-int secp256k1_ellswift_encode(const secp256k1_context* ctx, unsigned char *ell64, const secp256k1_pubkey *pubkey, const unsigned char *rnd32) {
+int secp256k1_ellswift_encode(const secp256k1_context* ctx, unsigned char *ell64, const secp256k1_pubkey *pubkey, const unsigned char *rnd321) {
+//    const unsigned char rnd32[32] = {
+//            0xf8, 0xe7, 0x50, 0x37, 0xaa, 0xfa, 0x82, 0x3c,
+//            0x76, 0xaa, 0x22, 0xf0, 0xa3, 0xa4, 0x90, 0xda,
+//            0x31, 0x67, 0x93, 0xac, 0x33, 0xb0, 0xb3, 0xe8,
+//            0x3a, 0x58, 0xbf, 0xe0, 0xc0, 0x27, 0x49, 0x59,
+//    };
+    unsigned char rnd32[32] = {
+            0x83, 0x9c, 0x7c, 0x66, 0x64, 0xd2, 0x99, 0xe0,
+            0xb7, 0xe3, 0x3a, 0x8f, 0x84, 0x11, 0xfa, 0xd5,
+            0x3d, 0xb2, 0x56, 0x86, 0xe3, 0x0a, 0x81, 0xa0,
+            0x70, 0x8b, 0xf6, 0x62, 0x73, 0xe5, 0x8d, 0x16,
+    };
     secp256k1_ge p;
     VERIFY_CHECK(ctx != NULL);
     ARG_CHECK(ell64 != NULL);
     ARG_CHECK(pubkey != NULL);
-    ARG_CHECK(rnd32 != NULL);
-
+    ARG_CHECK(rnd321 != NULL);
     if (secp256k1_pubkey_load(ctx, &p, pubkey)) {
         static const unsigned char PREFIX[128 - 9 - 4 - 32 - 33] = "secp256k1_ellswift_encode";
         secp256k1_fe u, t;
         unsigned char p33[33];
-        secp256k1_sha256 hash;
+//        unsigned char branch_hash[32];
+        secp256k1_sha256 hash, hash2;
 
         /* Set up hasher state */
         secp256k1_sha256_initialize(&hash);
         secp256k1_sha256_write(&hash, PREFIX, sizeof(PREFIX));
+//        printf("printing PREFIX\n");
+//        print_buf_1(&PREFIX, 128 - 9 - 4 - 32 - 33);
+//        printf("printing 32 bytes\n");
+//        print_buf_1(&rnd32, 32);
         secp256k1_sha256_write(&hash, rnd32, 32);
+//        printf("printing 33 bytes\n");
         secp256k1_fe_get_b32(p33, &p.x);
         p33[32] = secp256k1_fe_is_odd(&p.y);
+//        print_buf_1(&p33, 33);
         secp256k1_sha256_write(&hash, p33, sizeof(p33));
+//        printf("final hash\n");
+//        hash2 = hash;
+//        secp256k1_sha256_finalize(&hash2, branch_hash);
+//        print_buf_1(&branch_hash, 32);
+        printf("it's gonna be lit tonight\n");
         VERIFY_CHECK(hash.bytes == 128 - 9 - 4);
+//        print_buf_1(&hash.buf, hash.bytes);
 
         /* Compute ElligatorSwift encoding and construct output. */
         secp256k1_ellswift_ge_to_fe2_var(&u, &t, &p, &hash);
         secp256k1_fe_get_b32(ell64, &u);
         secp256k1_fe_get_b32(ell64 + 32, &t);
+//        print_buf_1(&ell64, 64);
         return 1;
     }
     /* Only returned in case the provided pubkey is invalid. */
