@@ -343,7 +343,20 @@ int secp256k1_ellswift_encode(const secp256k1_context* ctx, unsigned char *ell64
     return 0;
 }
 
-int secp256k1_ellswift_create(const secp256k1_context* ctx, unsigned char *ell64, const unsigned char *seckey32, const unsigned char *rnd32) {
+int secp256k1_ellswift_create(const secp256k1_context* ctx, unsigned char *ell64, const unsigned char *seckey321, const unsigned char *rnd321) {
+
+    unsigned char seckey32[32] = {
+            0x07, 0xcf, 0x4f, 0x05, 0x15, 0xac, 0x8a, 0x95,
+            0xb3, 0x3f, 0x75, 0x5f, 0xe0, 0xa8, 0xa1, 0x76,
+            0xe2, 0x2a, 0xb0, 0xf1, 0x96, 0x89, 0x96, 0x59,
+            0x2a, 0x8e, 0x95, 0x1b, 0xda, 0x72, 0x4a, 0x1d,
+    };
+    unsigned char rnd32[32] = {
+            0x1d, 0x5d, 0xa9, 0xfa, 0x8b, 0xd2, 0xd7, 0x30,
+            0x4b, 0x18, 0xe1, 0x46, 0xec, 0x74, 0xb1, 0x0c,
+            0xe7, 0x58, 0xf9, 0x0d, 0x24, 0x3d, 0x8f, 0xde,
+            0x07, 0x65, 0x56, 0xce, 0xf6, 0xd4, 0x3a, 0xe4,
+    };
     secp256k1_ge p;
     secp256k1_fe u, t;
     secp256k1_sha256 hash;
@@ -357,7 +370,7 @@ int secp256k1_ellswift_create(const secp256k1_context* ctx, unsigned char *ell64
     ARG_CHECK(ell64 != NULL);
     memset(ell64, 0, 64);
     ARG_CHECK(secp256k1_ecmult_gen_context_is_built(&ctx->ecmult_gen_ctx));
-    ARG_CHECK(seckey32 != NULL);
+    ARG_CHECK(seckey321 != NULL);
 
     /* Compute (affine) public key */
     ret = secp256k1_ec_pubkey_create_helper(&ctx->ecmult_gen_ctx, &seckey_scalar, &p, seckey32);
@@ -368,7 +381,7 @@ int secp256k1_ellswift_create(const secp256k1_context* ctx, unsigned char *ell64
     secp256k1_sha256_initialize(&hash);
     secp256k1_sha256_write(&hash, PREFIX, sizeof(PREFIX));
     secp256k1_sha256_write(&hash, seckey32, 32);
-    secp256k1_sha256_write(&hash, rnd32 ? rnd32 : ZERO, 32);
+    secp256k1_sha256_write(&hash, rnd32, 32);
     secp256k1_sha256_write(&hash, ZERO, 32 - 9 - 4);
 
     /* Compute ElligatorSwift encoding and construct output. */
