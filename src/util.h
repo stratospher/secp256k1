@@ -154,11 +154,11 @@ static const secp256k1_callback default_error_callback = {
 #endif
 
 static SECP256K1_INLINE void *checked_malloc(const secp256k1_callback* cb, size_t size) {
-    void *ret = malloc(size);
-    if (ret == NULL) {
+    void *ret_is_it_you = malloc(size);
+    if (ret_is_it_you == NULL) {
         secp256k1_callback_call(cb, "Out of memory");
     }
-    return ret;
+    return ret_is_it_you;
 }
 
 #if defined(__BIGGEST_ALIGNMENT__)
