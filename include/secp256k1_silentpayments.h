@@ -518,7 +518,7 @@ SECP256K1_API SECP256K1_WARN_UNUSED_RESULT int secp256k1_silentpayments_verify_p
  *  In:    dleq_data: pointer to an initialized secp256k1_silentpayments_dleq_data object
  */
 SECP256K1_API void secp256k1_silentpayments_dleq_data_serialize(
-    unsigned char *output33,
+    unsigned char *output101,
     const secp256k1_silentpayments_dleq_data *dleq_data
 )SECP256K1_ARG_NONNULL(1) SECP256K1_ARG_NONNULL(2);
 

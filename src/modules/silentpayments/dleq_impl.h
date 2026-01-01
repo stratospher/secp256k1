@@ -59,7 +59,7 @@ static int secp256k1_dleq_hash_point(secp256k1_sha256 *sha, secp256k1_ge *p) {
     return 1;
 }
 
-static void secp256k1_nonce_function_dleq(unsigned char *nonce32, const unsigned char *msg, size_t msglen, const unsigned char *key32, const unsigned char *aux_rand32) {
+static void secp256k1_nonce_function_dleq(unsigned char *nonce32, const unsigned char *msg, size_t msglen, const unsigned char *key32, const unsigned char *aux_rand32, const unsigned char *m) {
     secp256k1_sha256 sha;
     unsigned char masked_key[32];
     int i;
@@ -85,20 +85,25 @@ static void secp256k1_nonce_function_dleq(unsigned char *nonce32, const unsigned
     }
 
     secp256k1_nonce_function_bip374_sha256_tagged(&sha);
-    /* Hash masked-key||msg using the tagged hash as per the spec */
+    /* Hash masked-key||msg||m using the tagged hash as per BIP-374 v0.2.0 */
     secp256k1_sha256_write(&sha, masked_key, 32);
     secp256k1_sha256_write(&sha, msg, msglen);
+    if (m != NULL) {
+        secp256k1_sha256_write(&sha, m, 32);
+    }
     secp256k1_sha256_finalize(&sha, nonce32);
+    secp256k1_sha256_clear(&sha);
+    secp256k1_memclear_explicit(masked_key, sizeof(masked_key));
 }
 
-/* Generates a nonce as defined in BIP0374 */
-static int secp256k1_dleq_nonce(secp256k1_scalar *k, const unsigned char *a32, const unsigned char *A_33, const unsigned char *C_33, const unsigned char *aux_rand32) {
+/* Generates a nonce as defined in BIP0374 v0.2.0 */
+static int secp256k1_dleq_nonce(secp256k1_scalar *k, const unsigned char *a32, const unsigned char *A_33, const unsigned char *C_33, const unsigned char *aux_rand32, const unsigned char *m) {
     unsigned char buf[66];
     unsigned char nonce[32];
 
     memcpy(buf, A_33, 33);
     memcpy(buf + 33, C_33, 33);
-    secp256k1_nonce_function_dleq(nonce, buf, 66, a32, aux_rand32);
+    secp256k1_nonce_function_dleq(nonce, buf, 66, a32, aux_rand32, m);
 
     secp256k1_scalar_set_b32(k, nonce, NULL);
     if (secp256k1_scalar_is_zero(k)) {
@@ -172,7 +177,7 @@ static int secp256k1_dleq_prove(const secp256k1_context *ctx, secp256k1_scalar *
     if (!secp256k1_eckey_pubkey_serialize(C, C_33, &pubkey_size, 1)) {
         return 0;
     }
-    ret &= secp256k1_dleq_nonce(&k, a32, A_33, C_33, aux_rand32);
+    ret &= secp256k1_dleq_nonce(&k, a32, A_33, C_33, aux_rand32, m);
 
     /* R1 = k*G, R2 = k*B */
     secp256k1_dleq_pair(&ctx->ecmult_gen_ctx, &R1, &R2, &k, B);
@@ -188,6 +193,7 @@ static int secp256k1_dleq_prove(const secp256k1_context *ctx, secp256k1_scalar *
     secp256k1_scalar_add(s, s, &k);
 
     secp256k1_scalar_clear(&k);
+    secp256k1_memclear_explicit(a32, sizeof(a32));
     return ret;
 }
 

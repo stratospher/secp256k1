@@ -809,16 +809,16 @@ void run_silentpayments_test_vectors(void) {
 
 static void dleq_nonce_bitflip(unsigned char **args, size_t n_flip, size_t n_bytes) {
     secp256k1_scalar k1, k2;
-    CHECK(secp256k1_dleq_nonce(&k1, args[0], args[1], args[2], args[3]) == 1);
+    CHECK(secp256k1_dleq_nonce(&k1, args[0], args[1], args[2], args[3], args[4]) == 1);
     testrand_flip(args[n_flip], n_bytes);
-    CHECK(secp256k1_dleq_nonce(&k2, args[0], args[1], args[2], args[3]) == 1);
+    CHECK(secp256k1_dleq_nonce(&k2, args[0], args[1], args[2], args[3], args[4]) == 1);
     CHECK(secp256k1_scalar_eq(&k1, &k2) == 0);
 }
 
 static void dleq_tests(void) {
     secp256k1_scalar s, e, a, k;
     secp256k1_ge A, B, C;
-    unsigned char *args[4];
+    unsigned char *args[5];
     unsigned char a32[32];
     unsigned char A_33[33];
     unsigned char C_33[33];
@@ -888,7 +888,7 @@ static void dleq_tests(void) {
     secp256k1_scalar_get_b32(a32, &a);
     CHECK(secp256k1_eckey_pubkey_serialize(&A, A_33, &pubkey_size, 1));
     CHECK(secp256k1_eckey_pubkey_serialize(&C, C_33, &pubkey_size, 1));
-    CHECK(secp256k1_dleq_nonce(&k, a32, A_33, C_33, aux_rand) == 1);
+    CHECK(secp256k1_dleq_nonce(&k, a32, A_33, C_33, aux_rand, msg) == 1);
 
     testrand_bytes_test(a32, sizeof(a32));
     testrand_bytes_test(A_33, sizeof(A_33));
@@ -900,6 +900,7 @@ static void dleq_tests(void) {
     args[1] = A_33;
     args[2] = C_33;
     args[3] = aux_rand;
+    args[4] = msg;
     for (i = 0; i < COUNT; i++) {
         dleq_nonce_bitflip(args, 0, sizeof(a32));
         dleq_nonce_bitflip(args, 1, sizeof(A_33));
@@ -908,10 +909,13 @@ static void dleq_tests(void) {
         /* Flip C again */
         dleq_nonce_bitflip(args, 2, sizeof(C_33));
         dleq_nonce_bitflip(args, 3, sizeof(aux_rand));
+        dleq_nonce_bitflip(args, 4, sizeof(msg));
     }
 
-    /* NULL aux_rand argument is allowed.*/
-    CHECK(secp256k1_dleq_nonce(&k, a32, A_33, C_33, NULL) == 1);
+    /* NULL aux_rand and msg arguments are allowed.*/
+    CHECK(secp256k1_dleq_nonce(&k, a32, A_33, C_33, NULL, NULL) == 1);
+    CHECK(secp256k1_dleq_nonce(&k, a32, A_33, C_33, aux_rand, NULL) == 1);
+    CHECK(secp256k1_dleq_nonce(&k, a32, A_33, C_33, NULL, msg) == 1);
 }
 
 /* Test BIP-374 test vectors ("Discrete Log Equality Proofs").
