@@ -140,6 +140,7 @@ option(SECP256K1_BUILD_TESTS "Build tests." ON)
 option(SECP256K1_BUILD_EXHAUSTIVE_TESTS "Build exhaustive tests." ON)
 option(SECP256K1_BUILD_CTIME_TESTS "Build constant-time tests." ${SECP256K1_VALGRIND})
 option(SECP256K1_BUILD_EXAMPLES "Build examples." OFF)
+option(SECP256K1_BUILD_FUZZ_TESTS "Build fuzz tests (requires -fsanitize=fuzzer in CMAKE_C_FLAGS)." OFF)
 
 # Redefine configuration flags.
 # We leave assertions on, because they are only used in the examples, and we want them always on there.
@@ -307,6 +308,7 @@ message("  tests ............................... ${tests_status}")
 message("  exhaustive tests .................... ${SECP256K1_BUILD_EXHAUSTIVE_TESTS}")
 message("  ctime_tests ......................... ${SECP256K1_BUILD_CTIME_TESTS}")
 message("  examples ............................ ${SECP256K1_BUILD_EXAMPLES}")
+message("  fuzz_ecmult ......................... ${SECP256K1_BUILD_FUZZ_TESTS}")
 message("")
 if(CMAKE_CROSSCOMPILING)
   set(cross_status "TRUE, for ${CMAKE_SYSTEM_NAME}, ${CMAKE_SYSTEM_PROCESSOR}")

@@ -182,6 +182,21 @@ if(SECP256K1_BUILD_CTIME_TESTS)
   target_link_libraries(ctime_tests secp256k1)
 endif()
 
+if(SECP256K1_BUILD_FUZZ_TESTS)
+  add_executable(fuzz_ecmult fuzz_ecmult.c)
+  target_link_libraries(fuzz_ecmult secp256k1_precomputed secp256k1_asm)
+  target_compile_definitions(fuzz_ecmult PRIVATE VERIFY)
+  # -fsanitize=fuzzer instruments the TU and provides main(); address catches
+  # memory bugs.  These flags must NOT go in CMAKE_C_FLAGS because cmake's
+  # compiler-check program has no LLVMFuzzerTestOneInput and will fail to link.
+  # Apple's CLT clang lacks the fuzzer runtime; use Homebrew LLVM:
+  #   brew install llvm
+  #   cmake -B build-fuzz -DSECP256K1_BUILD_FUZZ_TESTS=ON \
+  #         -DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm/bin/clang ..
+  target_compile_options(fuzz_ecmult PRIVATE -fsanitize=fuzzer,address)
+  target_link_options(fuzz_ecmult PRIVATE -fsanitize=fuzzer,address)
+endif()
+
 if(SECP256K1_INSTALL)
   include(GNUInstallDirs)
   target_include_directories(secp256k1 INTERFACE
