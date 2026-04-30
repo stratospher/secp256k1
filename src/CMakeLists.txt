@@ -195,6 +195,27 @@ if(SECP256K1_BUILD_FUZZ_TESTS)
   #         -DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm/bin/clang ..
   target_compile_options(fuzz_ecmult PRIVATE -fsanitize=fuzzer,address)
   target_link_options(fuzz_ecmult PRIVATE -fsanitize=fuzzer,address)
+  # Homebrew LLVM's libFuzzer is built against its own libc++ which is newer
+  # than Apple CLT's. Force the linker to use LLVM's libc++ to satisfy the
+  # __hash_memory symbol used by FuzzerDataFlowTrace etc.
+  if(APPLE AND CMAKE_C_COMPILER MATCHES "homebrew|/opt/homebrew/opt/llvm")
+    get_filename_component(_llvm_clang_dir ${CMAKE_C_COMPILER} DIRECTORY)
+    get_filename_component(_llvm_root ${_llvm_clang_dir} DIRECTORY)
+    target_link_options(fuzz_ecmult PRIVATE -L${_llvm_root}/lib/c++ -Wl,-rpath,${_llvm_root}/lib/c++ -lc++)
+  endif()
+
+  foreach(_target fuzz_ecmult_multi_strauss fuzz_ecmult_multi_pippenger fuzz_ecmult_multi_var)
+    add_executable(${_target} ${_target}.c)
+    target_link_libraries(${_target} secp256k1_precomputed secp256k1_asm)
+    target_compile_definitions(${_target} PRIVATE VERIFY)
+    target_compile_options(${_target} PRIVATE -fsanitize=fuzzer,address)
+    target_link_options(${_target} PRIVATE -fsanitize=fuzzer,address)
+    if(APPLE AND CMAKE_C_COMPILER MATCHES "homebrew|/opt/homebrew/opt/llvm")
+      get_filename_component(_llvm_clang_dir ${CMAKE_C_COMPILER} DIRECTORY)
+      get_filename_component(_llvm_root ${_llvm_clang_dir} DIRECTORY)
+      target_link_options(${_target} PRIVATE -L${_llvm_root}/lib/c++ -Wl,-rpath,${_llvm_root}/lib/c++ -lc++)
+    endif()
+  endforeach()
 endif()
 
 if(SECP256K1_INSTALL)
