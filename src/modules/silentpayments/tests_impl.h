@@ -601,6 +601,99 @@ static void test_recipient_api(void) {
     CHECK_ILLEGAL(CTX, secp256k1_silentpayments_recipient_scan_outputs(CTX, fp, &n_f, tp, 1, ALICE_SECKEY, &ps, &p, NULL, NULL));
 }
 
+static void test_recipient_scan_label_multi_batch(void) {
+    /* Scanning collects label candidates in batches of LABEL_BATCH_SIZE (= 8) tx outputs
+     * before checking them against the label cache. Verify that a labeled payment located
+     * beyond the first batch is attributed to the correct transaction output, i.e., that
+     * the mapping from batch entry back to tx output index works across multiple batches:
+     * place the labeled payment at index 8 (the sole entry of the second batch), behind
+     * 8 non-matching outputs.
+     */
+    enum { N_TX_OUTPUTS = 9 };
+    unsigned char scan_seckey[32];
+    unsigned char spend_seckey[32];
+    unsigned char label_tweak[32];
+    unsigned char full_seckey[32];
+    unsigned char expected_ser[32];
+    unsigned char found_ser[32];
+    secp256k1_pubkey scan_pubkey, spend_pubkey, labeled_spend_pubkey, alice_pubkey, tmp_pubkey;
+    secp256k1_pubkey const *input_pubkey_ptrs[1];
+    secp256k1_silentpayments_label label;
+    secp256k1_silentpayments_recipient recipient;
+    const secp256k1_silentpayments_recipient *recipient_ptrs[1];
+    secp256k1_xonly_pubkey generated_output;
+    secp256k1_xonly_pubkey *generated_output_ptrs[1];
+    secp256k1_xonly_pubkey tx_output_objs[N_TX_OUTPUTS];
+    secp256k1_xonly_pubkey const *tx_outputs[N_TX_OUTPUTS];
+    secp256k1_silentpayments_found_output found_output_objs[N_TX_OUTPUTS];
+    secp256k1_silentpayments_found_output *found_outputs[N_TX_OUTPUTS];
+    secp256k1_silentpayments_prevouts_summary prevouts_summary;
+    unsigned char const *seckey_ptrs[1];
+    uint32_t n_found;
+    size_t i;
+
+    /* Set up Bob's keys and a label cache containing the label with m=1 */
+    memset(scan_seckey, 0x11, 32);
+    memset(spend_seckey, 0x22, 32);
+    CHECK(secp256k1_ec_pubkey_create(CTX, &scan_pubkey, scan_seckey));
+    CHECK(secp256k1_ec_pubkey_create(CTX, &spend_pubkey, spend_seckey));
+    CHECK(secp256k1_silentpayments_recipient_label_create(CTX, &label, label_tweak, scan_seckey, 1));
+    CHECK(secp256k1_silentpayments_recipient_label_serialize(CTX, labels_cache.entries[0].label, &label));
+    memcpy(labels_cache.entries[0].label_tweak, label_tweak, 32);
+    labels_cache.entries_used = 1;
+
+    /* Alice sends to Bob's labeled address */
+    CHECK(secp256k1_silentpayments_recipient_create_labeled_spend_pubkey(CTX, &labeled_spend_pubkey, &spend_pubkey, &label));
+    recipient.scan_pubkey = scan_pubkey;
+    recipient.spend_pubkey = labeled_spend_pubkey;
+    recipient.index = 0;
+    recipient_ptrs[0] = &recipient;
+    generated_output_ptrs[0] = &generated_output;
+    seckey_ptrs[0] = ALICE_SECKEY;
+    CHECK(secp256k1_silentpayments_sender_create_outputs(CTX, generated_output_ptrs, recipient_ptrs, 1, SMALLEST_OUTPOINT, NULL, 0, seckey_ptrs, 1));
+
+    /* Build the tx outputs: 8 outputs not belonging to Bob, then the labeled payment */
+    for (i = 0; i < N_TX_OUTPUTS - 1; i++) {
+        unsigned char decoy_seckey[32];
+        memset(decoy_seckey, 0x30 + (int)i, 32);
+        CHECK(secp256k1_ec_pubkey_create(CTX, &tmp_pubkey, decoy_seckey));
+        CHECK(secp256k1_xonly_pubkey_from_pubkey(CTX, &tx_output_objs[i], NULL, &tmp_pubkey));
+    }
+    tx_output_objs[N_TX_OUTPUTS - 1] = generated_output;
+    for (i = 0; i < N_TX_OUTPUTS; i++) {
+        tx_outputs[i] = &tx_output_objs[i];
+        found_outputs[i] = &found_output_objs[i];
+    }
+
+    /* Bob scans the transaction */
+    CHECK(secp256k1_ec_pubkey_create(CTX, &alice_pubkey, ALICE_SECKEY));
+    input_pubkey_ptrs[0] = &alice_pubkey;
+    CHECK(secp256k1_silentpayments_recipient_prevouts_summary_create(CTX, &prevouts_summary, SMALLEST_OUTPOINT, NULL, 0, input_pubkey_ptrs, 1));
+    n_found = 0;
+    CHECK(secp256k1_silentpayments_recipient_scan_outputs(CTX, found_outputs, &n_found, tx_outputs, N_TX_OUTPUTS, scan_seckey, &prevouts_summary, &spend_pubkey, label_lookup, &labels_cache));
+
+    /* The found output must be the labeled payment at index 8, not an output
+     * from the first batch */
+    CHECK(n_found == 1);
+    CHECK(found_outputs[0]->found_with_label == 1);
+    CHECK(secp256k1_xonly_pubkey_serialize(CTX, expected_ser, &generated_output));
+    CHECK(secp256k1_xonly_pubkey_serialize(CTX, found_ser, &found_outputs[0]->output));
+    CHECK(secp256k1_memcmp_var(found_ser, expected_ser, 32) == 0);
+
+    /* The found output must be spendable with spend_seckey + tweak */
+    memcpy(full_seckey, spend_seckey, 32);
+    CHECK(secp256k1_ec_seckey_tweak_add(CTX, full_seckey, found_outputs[0]->tweak));
+    {
+        secp256k1_xonly_pubkey full_xonly;
+        CHECK(secp256k1_ec_pubkey_create(CTX, &tmp_pubkey, full_seckey));
+        CHECK(secp256k1_xonly_pubkey_from_pubkey(CTX, &full_xonly, NULL, &tmp_pubkey));
+        CHECK(secp256k1_xonly_pubkey_serialize(CTX, found_ser, &full_xonly));
+        CHECK(secp256k1_memcmp_var(found_ser, expected_ser, 32) == 0);
+    }
+
+    labels_cache.entries_used = 0;
+}
+
 void run_silentpayments_test_vector_send(const struct bip352_test_vector *test) {
     static secp256k1_silentpayments_recipient recipients[MAX_OUTPUTS_PER_TEST_CASE];
     static const secp256k1_silentpayments_recipient *recipient_ptrs[MAX_OUTPUTS_PER_TEST_CASE];
@@ -861,6 +954,7 @@ static const struct tf_test_entry tests_silentpayments[] = {
     CASE1(test_send_api),
     CASE1(test_label_api),
     CASE1(test_recipient_api),
+    CASE1(test_recipient_scan_label_multi_batch),
     CASE1(run_silentpayments_test_vectors),
     CASE1(silentpayments_sha256_tag_test),
 };
