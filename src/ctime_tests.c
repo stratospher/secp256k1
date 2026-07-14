@@ -123,6 +123,7 @@ static void run_tests(secp256k1_context *ctx, unsigned char *key) {
     const secp256k1_xonly_pubkey *sp_xonly_pubkeys[1];
     secp256k1_pubkey sp_pubkey;
     const secp256k1_pubkey *sp_pubkeys[1];
+    unsigned char sp_scan_key[32];
 #endif
 
     for (i = 0; i < 32; i++) {
@@ -300,7 +301,10 @@ static void run_tests(secp256k1_context *ctx, unsigned char *key) {
 
     generated_outputs[0] = &generated_output;
 
-    /* Initialize recipient */
+    /* Initialize recipient. Snapshot the scan secret key before the key buffer is
+     * mutated below, so that scanning can later be performed with the secret key
+     * matching recipient.scan_pubkey. */
+    memcpy(sp_scan_key, key, 32);
     CHECK(secp256k1_ec_pubkey_create(ctx, &recipient.scan_pubkey, key));
     key[31] ^= 1;
     CHECK(secp256k1_ec_pubkey_create(ctx, &recipient.spend_pubkey, key));
@@ -321,7 +325,6 @@ static void run_tests(secp256k1_context *ctx, unsigned char *key) {
     CHECK(ret == 1);
 
     ret = secp256k1_silentpayments_recipient_label_create(ctx, &label, label_tweak, key, 0);
-    key[31] ^= (1 << 3);
     SECP256K1_CHECKMEM_DEFINE(&ret, sizeof(ret));
     CHECK(ret == 1);
 
@@ -344,7 +347,12 @@ static void run_tests(secp256k1_context *ctx, unsigned char *key) {
     /* It is sufficient to check _recipient_scan_outputs without a label lookup function, since the shared secret is created once (which is where the constant timeness matters)
      * and then reused for the rest of the scanning logic.
      */
-    CHECK(secp256k1_silentpayments_recipient_scan_outputs(ctx, found_outputs_ptrs, &n_found_outputs, tx_outputs, 1, key, &prevouts_summary, &recipient.spend_pubkey, NULL, NULL));
+    SECP256K1_CHECKMEM_UNDEFINE(sp_scan_key, 32);
+    CHECK(secp256k1_silentpayments_recipient_scan_outputs(ctx, found_outputs_ptrs, &n_found_outputs, tx_outputs, 1, sp_scan_key, &prevouts_summary, &recipient.spend_pubkey, NULL, NULL));
+    /* The scanned output must actually be found, so that the found-output recording path
+     * also runs under the constant-time harness. n_found_outputs is derived from
+     * declassified data, so branching on it here is fine. */
+    CHECK(n_found_outputs == 1);
 
 #endif
 }
